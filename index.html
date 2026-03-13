@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幸运大转盘</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .controls label {
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        .controls input {
+            width: 80px;
+            padding: 5px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .controls button {
+            padding: 5px 15px;
+            font-size: 16px;
+            margin-left: 10px;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .controls button:hover {
+            background-color: #27ae60;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            margin: 0 auto 30px;
+        }
+
+        .wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            transition: transform 4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            border: 5px solid #fff;
+        }
+
+        .segment {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform-origin: center;
+            overflow: hidden;
+        }
+
+        .segment-content {
+            position: absolute;
+            width: 60px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            font-family: "Microsoft YaHei", SimHei, "Hiragino Sans GB", sans-serif;
+            color: #333;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -20px; /* 在转盘上方 */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 40px;
+            background: linear-gradient(to bottom, #ff3333, #cc0000);
+            border-radius: 3px 3px 0 0;
+            z-index: 20;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+        }
+
+        .pointer::after {
+            content: '';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, #ffd700, #ffa500);
+            border-radius: 50%;
+            z-index: -1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .spin-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            position: relative;
+            z-index: 100;
+        }
+
+        .spin-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .spin-btn:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            min-height: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>幸运大转盘</h1>
+        <div class="controls">
+            <label for="studentCount">项目数量: </label>
+            <input type="number" id="studentCount" value="30">
+            <button id="updateBtn">更新转盘</button>
+            <br><br>
+            <label for="fileInput">或导入项目名单(.txt): </label>
+            <input type="file" id="fileInput" accept=".txt">
+        </div>
+        <div class="wheel-container">
+            <div class="pointer"></div>
+            <div class="wheel" id="wheel">
+                <!-- 转盘扇形将通过JavaScript生成 -->
+            </div>
+        </div>
+        <button class="spin-btn" id="spinBtn">开始抽奖</button>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        let students = Array.from({length: 30}, (_, i) => `${i + 1}`);
+        let currentRotation = 0; // 跟踪累计旋转角度
+
+        const wheel = document.getElementById('wheel');
+        const spinBtn = document.getElementById('spinBtn');
+        const resultDiv = document.getElementById('result');
+        const studentCountInput = document.getElementById('studentCount');
+        const updateBtn = document.getElementById('updateBtn');
+        const fileInput = document.getElementById('fileInput');
+
+        // 生成颜色数组
+        function generateColors(count) {
+            const baseColors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8B500', '#00CED1', '#FF7F50', '#9370DB', '#32CD32',
+                '#FF69B4', '#00BFFF', '#FFD700', '#8A2BE2', '#3CB371'
+            ];
+
+            // 如果数量超过预设颜色数量，循环使用
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(baseColors[i % baseColors.length]);
+            }
+            return colors;
+        }
+
+        // 创建转盘扇形
+        function createWheel() {
+            // 清空现有的转盘
+            wheel.innerHTML = '';
+
+            const segmentAngle = 360 / students.length;
+            const colors = generateColors(students.length);
+
+            // 使用conic-gradient创建扇形背景
+            let gradientParts = [];
+            colors.forEach((color, index) => {
+                const startPercent = (index * segmentAngle / 360 * 100).toFixed(2);
+                const endPercent = ((index + 1) * segmentAngle / 360 * 100).toFixed(2);
+                gradientParts.push(`${color} ${startPercent}% ${endPercent}%`);
+            });
+            wheel.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+
+            // 创建文字层
+            students.forEach((student, index) => {
+                const content = document.createElement('div');
+                content.className = 'segment-content';
+                content.textContent = student;
+
+                // 计算扇形中点的角度
+                const midAngle = index * segmentAngle + segmentAngle / 2;
+                const angleInRadians = (midAngle - 90) * Math.PI / 180;
+
+                // 根据扇形数量调整字体大小和距离
+                const fontSize = Math.max(8, Math.min(14, 300 / students.length));
+                const distanceFromCenter = 35;
+                const x = 50 + distanceFromCenter * Math.cos(angleInRadians);
+                const y = 50 + distanceFromCenter * Math.sin(angleInRadians);
+
+                // 设置文字位置
+                content.style.left = `${x}%`;
+                content.style.top = `${y}%`;
+                content.style.transform = `translate(-50%, -50%)`;
+                content.style.fontSize = `${fontSize}px`;
+
+                wheel.appendChild(content);
+            });
+        }
+
+        // 更新学生列表
+        function updateStudents(count) {
+            students = Array.from({length: count}, (_, i) => `${i + 1}`);
+            createWheel();
+        }
+
+        // 从文本文件加载项目名单
+        function loadStudentsFromFile(file) {
+            console.log("开始处理文件:", file.name);
+
+            // 显示加载状态
+            resultDiv.textContent = '加载中...';
+
+            // 禁用开始抽奖按钮
+            spinBtn.disabled = true;
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const content = e.target.result;
+                console.log("文件内容:", content);
+
+                // 按行分割文本内容
+                const lines = content.split(/\r?\n/);
+                console.log("分割后的行数:", lines.length);
+
+                // 过滤掉空行
+                const validLines = lines.filter(line => line.trim() !== '');
+                console.log("有效行数:", validLines.length);
+
+                if (validLines.length === 0) {
+                    alert('文件中没有找到有效数据，请确保每行有一个项目名称');
+                    // 恢复按钮状态
+                    spinBtn.disabled = false;
+                    resultDiv.textContent = '';
+                    return;
+                }
+
+                students = validLines.map(name => name.trim());
+                console.log("项目列表:", students);
+
+                // 更新项目数量输入框
+                studentCountInput.value = students.length;
+
+                // 重置旋转角度
+                currentRotation = 0;
+
+                // 禁用过渡动画，更新转盘后再恢复
+                wheel.style.transition = 'none';
+                wheel.style.transform = 'rotate(0deg)';
+                wheel.offsetHeight; // 强制重绘
+                wheel.style.transition = 'transform 4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+
+                createWheel();
+
+                // 恢复按钮状态
+                spinBtn.disabled = false;
+                resultDiv.textContent = '';
+
+                console.log("转盘已更新");
+            };
+
+            reader.onerror = function() {
+                console.error('文件读取失败');
+                alert('文件读取失败，请重试');
+                // 恢复按钮状态
+                spinBtn.disabled = false;
+                resultDiv.textContent = '';
+            };
+
+            reader.readAsText(file);
+        }
+
+        // 旋转转盘
+        function spinWheel() {
+            // 禁用按钮直到动画结束
+            spinBtn.disabled = true;
+            resultDiv.textContent = '';
+
+            // 计算旋转的角度
+            const segmentAngle = 360 / students.length;
+            const extraRotations = 5 + Math.floor(Math.random() * 3); // 5-7圈
+
+            // 随机旋转一个角度
+            const rotation = currentRotation + extraRotations * 360 + Math.floor(Math.random() * 360);
+
+            // 应用旋转
+            wheel.style.transform = `rotate(${rotation}deg)`;
+
+            // 动画结束后计算结果
+            setTimeout(() => {
+                // 计算停在哪个扇区
+                const finalAngle = rotation % 360;
+                // 指针在顶部，逆时针计算扇区索引
+                const selectedIndex = Math.floor(((360 - finalAngle) % 360) / segmentAngle);
+                currentRotation = rotation;
+                resultDiv.textContent = `幸运儿是: ${students[selectedIndex]}`;
+                spinBtn.disabled = false;
+            }, 4000);
+        }
+
+        // 初始化转盘
+        createWheel();
+
+        // 添加点击事件监听器
+        spinBtn.addEventListener('click', spinWheel);
+
+        // 更新转盘事件监听器
+        updateBtn.addEventListener('click', () => {
+            const count = parseInt(studentCountInput.value);
+            if (count >= 1 && count <= 60) {  // 添加合理的上限值
+                currentRotation = 0; // 重置旋转角度
+                // 临时禁用过渡动画，避免转盘自己转动
+                wheel.style.transition = 'none';
+                wheel.style.transform = 'rotate(0deg)';
+                // 强制重绘后恢复过渡效果
+                wheel.offsetHeight;
+                wheel.style.transition = '';
+                updateStudents(count);
+            } else {
+                alert('请输入1-60之间的学生人数');
+            }
+        });
+
+        // 回车键也可以触发更新
+        studentCountInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                updateBtn.click();
+            }
+        });
+
+        // 文件上传事件监听器
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+
+            if (!file) {
+                return; // 没有选择文件
+            }
+
+            // 检查文件扩展名
+            if (!file.name.toLowerCase().endsWith('.txt')) {
+                alert('请上传.txt格式的文件');
+                fileInput.value = ''; // 清除已选择的无效文件
+                return;
+            }
+
+            loadStudentsFromFile(file);
+        });
+    </script>
+</body>
+</html>
