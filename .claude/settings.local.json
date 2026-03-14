@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(start:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
+      "Bash(git checkout:*)"
     ]
   }
 }
