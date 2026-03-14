@@ -72,6 +72,7 @@
             transition: transform 4s cubic-bezier(0.34, 1.56, 0.64, 1);
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
             border: 5px solid #fff;
+            box-sizing: border-box;
         }
 
         .segment {
@@ -97,29 +98,16 @@
 
         .pointer {
             position: absolute;
-            top: -20px; /* 在转盘上方 */
+            top: -30px;
             left: 50%;
             transform: translateX(-50%);
-            width: 6px;
-            height: 40px;
-            background: linear-gradient(to bottom, #ff3333, #cc0000);
-            border-radius: 3px 3px 0 0;
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #ff3333;
             z-index: 20;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-        }
-
-        .pointer::after {
-            content: '';
-            position: absolute;
-            top: -12px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 20px;
-            background: radial-gradient(circle, #ffd700, #ffa500);
-            border-radius: 50%;
-            z-index: -1;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
         }
 
         .spin-btn {
@@ -175,7 +163,7 @@
     </div>
 
     <script>
-        let students = Array.from({length: 30}, (_, i) => `${i + 1}`);
+        let students = [];
         let currentRotation = 0; // 跟踪累计旋转角度
 
         const wheel = document.getElementById('wheel');
@@ -184,6 +172,30 @@
         const studentCountInput = document.getElementById('studentCount');
         const updateBtn = document.getElementById('updateBtn');
         const fileInput = document.getElementById('fileInput');
+
+        // 从localStorage加载保存的名单
+        function loadFromStorage() {
+            const saved = localStorage.getItem('luckyWheelStudents');
+            if (saved) {
+                students = JSON.parse(saved);
+                studentCountInput.value = students.length;
+                createWheel();
+                return true;
+            }
+            return false;
+        }
+
+        // 保存名单到localStorage
+        function saveToStorage() {
+            localStorage.setItem('luckyWheelStudents', JSON.stringify(students));
+        }
+
+        // 初始化时尝试从localStorage加载
+        if (!loadFromStorage()) {
+            students = Array.from({length: 30}, (_, i) => `${i + 1}`);
+            studentCountInput.value = 30;
+            createWheel();
+        }
 
         // 生成颜色数组
         function generateColors(count) {
@@ -249,6 +261,7 @@
         function updateStudents(count) {
             students = Array.from({length: count}, (_, i) => `${i + 1}`);
             createWheel();
+            saveToStorage();
         }
 
         // 从文本文件加载项目名单
@@ -299,6 +312,7 @@
                 wheel.style.transition = 'transform 4s cubic-bezier(0.34, 1.56, 0.64, 1)';
 
                 createWheel();
+                saveToStorage();
 
                 // 恢复按钮状态
                 spinBtn.disabled = false;
@@ -346,16 +360,13 @@
             }, 4000);
         }
 
-        // 初始化转盘
-        createWheel();
-
         // 添加点击事件监听器
         spinBtn.addEventListener('click', spinWheel);
 
         // 更新转盘事件监听器
         updateBtn.addEventListener('click', () => {
             const count = parseInt(studentCountInput.value);
-            if (count >= 1 && count <= 60) {  // 添加合理的上限值
+            if (count >= 1) {
                 currentRotation = 0; // 重置旋转角度
                 // 临时禁用过渡动画，避免转盘自己转动
                 wheel.style.transition = 'none';
@@ -365,7 +376,7 @@
                 wheel.style.transition = '';
                 updateStudents(count);
             } else {
-                alert('请输入1-60之间的学生人数');
+                alert('请输入至少1个项目');
             }
         });
 
