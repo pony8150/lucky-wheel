@@ -29,7 +29,7 @@
             margin-right: 10px;
         }
 
-        .controls input {
+        .controls input[type="number"] {
             width: 80px;
             padding: 5px;
             font-size: 16px;
@@ -58,42 +58,17 @@
 
         .wheel-container {
             position: relative;
-            width: 400px;
-            height: 400px;
+            width: 520px;
+            height: 550px;
             margin: 0 auto 30px;
         }
 
-        .wheel {
-            width: 100%;
-            height: 100%;
+        #wheel {
             border-radius: 50%;
-            position: relative;
-            overflow: hidden;
-            transition: transform 4s cubic-bezier(0.34, 1.56, 0.64, 1);
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
-            border: 5px solid #fff;
-            box-sizing: border-box;
-        }
-
-        .segment {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            transform-origin: center;
+            display: block;
+            margin-top: 30px;
             overflow: hidden;
-        }
-
-        .segment-content {
-            position: absolute;
-            width: 60px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 14px;
-            font-family: "Microsoft YaHei", SimHei, "Hiragino Sans GB", sans-serif;
-            color: #333;
-            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
-            z-index: 5;
-            pointer-events: none;
         }
 
         .pointer {
@@ -154,9 +129,9 @@
         </div>
         <div class="wheel-container">
             <div class="pointer"></div>
-            <div class="wheel" id="wheel">
-                <!-- 转盘扇形将通过JavaScript生成 -->
-            </div>
+            <svg id="wheel" viewBox="-260 -260 520 520" width="520" height="520">
+                <g id="wheelGroup"></g>
+            </svg>
         </div>
         <button class="spin-btn" id="spinBtn">开始抽奖</button>
         <div class="result" id="result"></div>
@@ -164,14 +139,100 @@
 
     <script>
         let students = [];
-        let currentRotation = 0; // 跟踪累计旋转角度
+        let currentRotation = 0; // 单位：度
+        let isSpinning = false;
 
-        const wheel = document.getElementById('wheel');
+        const wheelGroup = document.getElementById('wheelGroup');
         const spinBtn = document.getElementById('spinBtn');
         const resultDiv = document.getElementById('result');
         const studentCountInput = document.getElementById('studentCount');
         const updateBtn = document.getElementById('updateBtn');
         const fileInput = document.getElementById('fileInput');
+
+        const RADIUS = 256; // SVG 坐标系中的半径，viewBox 为 ±260
+
+        const NS = 'http://www.w3.org/2000/svg';
+
+        // 生成颜色数组
+        function generateColors(count) {
+            const baseColors = [
+                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                '#F8B500', '#00CED1', '#FF7F50', '#9370DB', '#32CD32',
+                '#FF69B4', '#00BFFF', '#FFD700', '#8A2BE2', '#3CB371'
+            ];
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(baseColors[i % baseColors.length]);
+            }
+            return colors;
+        }
+
+        // 创建 SVG 转盘（扇形 + 矢量文字统一在同一 <g> 内）
+        function createWheel() {
+            wheelGroup.innerHTML = '';
+            wheelGroup.setAttribute('transform', `rotate(${currentRotation})`);
+
+            if (students.length === 0) return;
+
+            const n = students.length;
+            const segAngleDeg = 360 / n;
+            const segAngleRad = (2 * Math.PI) / n;
+            const colors = generateColors(n);
+            const fontSize = Math.max(9, Math.min(15, 320 / n));
+            const textR = RADIUS * 0.65;
+
+            for (let i = 0; i < n; i++) {
+                const startRad = i * segAngleRad - Math.PI / 2;
+                const endRad = startRad + segAngleRad;
+                const midRad = startRad + segAngleRad / 2;
+
+                // 扇形路径
+                const x1 = RADIUS * Math.cos(startRad);
+                const y1 = RADIUS * Math.sin(startRad);
+                const x2 = RADIUS * Math.cos(endRad);
+                const y2 = RADIUS * Math.sin(endRad);
+                const largeArc = segAngleDeg > 180 ? 1 : 0;
+
+                const path = document.createElementNS(NS, 'path');
+                path.setAttribute('d', `M 0 0 L ${x1} ${y1} A ${RADIUS} ${RADIUS} 0 ${largeArc} 1 ${x2} ${y2} Z`);
+                path.setAttribute('fill', colors[i]);
+                path.setAttribute('stroke', 'rgba(255,255,255,0.6)');
+                path.setAttribute('stroke-width', '1');
+                wheelGroup.appendChild(path);
+
+                // 矢量文字：统一从圆心沿半径方向向外排列
+                const midDeg = midRad * 180 / Math.PI;
+                const textTransform = `rotate(${midDeg}) translate(${textR}, 0)`;
+
+                const text = document.createElementNS(NS, 'text');
+                text.setAttribute('transform', textTransform);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'middle');
+                text.setAttribute('font-size', fontSize);
+                text.setAttribute('font-weight', 'bold');
+                text.setAttribute('font-family', '"Microsoft YaHei", Arial, sans-serif');
+                text.setAttribute('fill', '#333');
+                text.textContent = students[i];
+                wheelGroup.appendChild(text);
+            }
+
+            // 外边框圆
+            const border = document.createElementNS(NS, 'circle');
+            border.setAttribute('r', RADIUS);
+            border.setAttribute('fill', 'none');
+            border.setAttribute('stroke', '#fff');
+            border.setAttribute('stroke-width', '6');
+            wheelGroup.appendChild(border);
+
+            // 中心圆点
+            const center = document.createElementNS(NS, 'circle');
+            center.setAttribute('r', '12');
+            center.setAttribute('fill', '#fff');
+            center.setAttribute('stroke', '#ddd');
+            center.setAttribute('stroke-width', '2');
+            wheelGroup.appendChild(center);
+        }
 
         // 从localStorage加载保存的名单
         function loadFromStorage() {
@@ -190,141 +251,50 @@
             localStorage.setItem('luckyWheelStudents', JSON.stringify(students));
         }
 
-        // 初始化时尝试从localStorage加载
+        // 初始化
         if (!loadFromStorage()) {
             students = Array.from({length: 30}, (_, i) => `${i + 1}`);
             studentCountInput.value = 30;
             createWheel();
         }
 
-        // 生成颜色数组
-        function generateColors(count) {
-            const baseColors = [
-                '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-                '#F8B500', '#00CED1', '#FF7F50', '#9370DB', '#32CD32',
-                '#FF69B4', '#00BFFF', '#FFD700', '#8A2BE2', '#3CB371'
-            ];
-
-            // 如果数量超过预设颜色数量，循环使用
-            const colors = [];
-            for (let i = 0; i < count; i++) {
-                colors.push(baseColors[i % baseColors.length]);
-            }
-            return colors;
-        }
-
-        // 创建转盘扇形
-        function createWheel() {
-            // 清空现有的转盘
-            wheel.innerHTML = '';
-
-            const segmentAngle = 360 / students.length;
-            const colors = generateColors(students.length);
-
-            // 使用conic-gradient创建扇形背景
-            let gradientParts = [];
-            colors.forEach((color, index) => {
-                const startPercent = (index * segmentAngle / 360 * 100).toFixed(2);
-                const endPercent = ((index + 1) * segmentAngle / 360 * 100).toFixed(2);
-                gradientParts.push(`${color} ${startPercent}% ${endPercent}%`);
-            });
-            wheel.style.background = `conic-gradient(${gradientParts.join(', ')})`;
-
-            // 创建文字层
-            students.forEach((student, index) => {
-                const content = document.createElement('div');
-                content.className = 'segment-content';
-                content.textContent = student;
-
-                // 计算扇形中点的角度
-                const midAngle = index * segmentAngle + segmentAngle / 2;
-                const angleInRadians = (midAngle - 90) * Math.PI / 180;
-
-                // 根据扇形数量调整字体大小和距离
-                const fontSize = Math.max(8, Math.min(14, 300 / students.length));
-                const distanceFromCenter = 35;
-                const x = 50 + distanceFromCenter * Math.cos(angleInRadians);
-                const y = 50 + distanceFromCenter * Math.sin(angleInRadians);
-
-                // 设置文字位置
-                content.style.left = `${x}%`;
-                content.style.top = `${y}%`;
-                content.style.transform = `translate(-50%, -50%)`;
-                content.style.fontSize = `${fontSize}px`;
-
-                wheel.appendChild(content);
-            });
-        }
-
         // 更新学生列表
         function updateStudents(count) {
             students = Array.from({length: count}, (_, i) => `${i + 1}`);
+            currentRotation = 0;
             createWheel();
             saveToStorage();
         }
 
         // 从文本文件加载项目名单
         function loadStudentsFromFile(file) {
-            console.log("开始处理文件:", file.name);
-
-            // 显示加载状态
             resultDiv.textContent = '加载中...';
-
-            // 禁用开始抽奖按钮
             spinBtn.disabled = true;
 
             const reader = new FileReader();
 
             reader.onload = function(e) {
-                const content = e.target.result;
-                console.log("文件内容:", content);
-
-                // 按行分割文本内容
-                const lines = content.split(/\r?\n/);
-                console.log("分割后的行数:", lines.length);
-
-                // 过滤掉空行
+                const lines = e.target.result.split(/\r?\n/);
                 const validLines = lines.filter(line => line.trim() !== '');
-                console.log("有效行数:", validLines.length);
 
                 if (validLines.length === 0) {
                     alert('文件中没有找到有效数据，请确保每行有一个项目名称');
-                    // 恢复按钮状态
                     spinBtn.disabled = false;
                     resultDiv.textContent = '';
                     return;
                 }
 
                 students = validLines.map(name => name.trim());
-                console.log("项目列表:", students);
-
-                // 更新项目数量输入框
                 studentCountInput.value = students.length;
-
-                // 重置旋转角度
                 currentRotation = 0;
-
-                // 禁用过渡动画，更新转盘后再恢复
-                wheel.style.transition = 'none';
-                wheel.style.transform = 'rotate(0deg)';
-                wheel.offsetHeight; // 强制重绘
-                wheel.style.transition = 'transform 4s cubic-bezier(0.34, 1.56, 0.64, 1)';
-
                 createWheel();
                 saveToStorage();
-
-                // 恢复按钮状态
                 spinBtn.disabled = false;
                 resultDiv.textContent = '';
-
-                console.log("转盘已更新");
             };
 
             reader.onerror = function() {
-                console.error('文件读取失败');
                 alert('文件读取失败，请重试');
-                // 恢复按钮状态
                 spinBtn.disabled = false;
                 resultDiv.textContent = '';
             };
@@ -334,74 +304,81 @@
 
         // 旋转转盘
         function spinWheel() {
-            // 禁用按钮直到动画结束
+            if (isSpinning) return;
+            isSpinning = true;
             spinBtn.disabled = true;
             resultDiv.textContent = '';
 
-            // 计算旋转的角度
-            const segmentAngle = 360 / students.length;
-            const extraRotations = 5 + Math.floor(Math.random() * 3); // 5-7圈
+            const extraRotations = 5 + Math.floor(Math.random() * 3);
+            const randomExtra = Math.random() * 360;
+            const targetRotation = currentRotation + extraRotations * 360 + randomExtra;
 
-            // 随机旋转一个角度
-            const rotation = currentRotation + extraRotations * 360 + Math.floor(Math.random() * 360);
+            const duration = 4000;
+            const startTime = performance.now();
+            const startRotation = currentRotation;
+            const totalDelta = targetRotation - startRotation;
 
-            // 应用旋转
-            wheel.style.transform = `rotate(${rotation}deg)`;
+            // 数值模拟 cubic-bezier(0.34, 1.56, 0.64, 1)：先猛后缓，带轻微过冲回弹
+            function bezierEase(t) {
+                const x1 = 0.34, y1 = 1.56, x2 = 0.64, y2 = 1.0;
+                let tp = t;
+                for (let i = 0; i < 10; i++) {
+                    const xc = 3*(1-tp)*(1-tp)*tp*x1 + 3*(1-tp)*tp*tp*x2 + tp*tp*tp;
+                    const dx = 3*(1-tp)*(1-tp)*x1 + 6*(1-tp)*tp*(x2-x1) + 3*tp*tp*(1-x2);
+                    if (Math.abs(dx) < 1e-8) break;
+                    tp = Math.max(0, Math.min(1, tp - (xc - t) / dx));
+                }
+                return 3*(1-tp)*(1-tp)*tp*y1 + 3*(1-tp)*tp*tp*y2 + tp*tp*tp;
+            }
 
-            // 动画结束后计算结果
-            setTimeout(() => {
-                // 计算停在哪个扇区
-                const finalAngle = rotation % 360;
-                // 指针在顶部，逆时针计算扇区索引
-                const selectedIndex = Math.floor(((360 - finalAngle) % 360) / segmentAngle);
-                currentRotation = rotation;
-                resultDiv.textContent = `幸运儿是: ${students[selectedIndex]}`;
-                spinBtn.disabled = false;
-            }, 4000);
+            function animate(now) {
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / duration, 1);
+                const angle = startRotation + totalDelta * bezierEase(t);
+                wheelGroup.setAttribute('transform', `rotate(${angle})`);
+
+                if (t < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    currentRotation = targetRotation;
+                    isSpinning = false;
+                    spinBtn.disabled = false;
+
+                    // 计算停在哪个扇区
+                    const segAngleDeg = 360 / students.length;
+                    const normalizedAngle = ((-currentRotation % 360) + 360) % 360;
+                    const selectedIndex = Math.floor(normalizedAngle / segAngleDeg) % students.length;
+                    resultDiv.textContent = `幸运儿是: ${students[selectedIndex]}`;
+                }
+            }
+
+            requestAnimationFrame(animate);
         }
 
-        // 添加点击事件监听器
+        // 事件监听
         spinBtn.addEventListener('click', spinWheel);
 
-        // 更新转盘事件监听器
         updateBtn.addEventListener('click', () => {
             const count = parseInt(studentCountInput.value);
             if (count >= 1) {
-                currentRotation = 0; // 重置旋转角度
-                // 临时禁用过渡动画，避免转盘自己转动
-                wheel.style.transition = 'none';
-                wheel.style.transform = 'rotate(0deg)';
-                // 强制重绘后恢复过渡效果
-                wheel.offsetHeight;
-                wheel.style.transition = '';
                 updateStudents(count);
             } else {
                 alert('请输入至少1个项目');
             }
         });
 
-        // 回车键也可以触发更新
         studentCountInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') {
-                updateBtn.click();
-            }
+            if (e.key === 'Enter') updateBtn.click();
         });
 
-        // 文件上传事件监听器
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-
-            if (!file) {
-                return; // 没有选择文件
-            }
-
-            // 检查文件扩展名
+            if (!file) return;
             if (!file.name.toLowerCase().endsWith('.txt')) {
                 alert('请上传.txt格式的文件');
-                fileInput.value = ''; // 清除已选择的无效文件
+                fileInput.value = '';
                 return;
             }
-
             loadStudentsFromFile(file);
         });
     </script>
